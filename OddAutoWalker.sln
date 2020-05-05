@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30011.22
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OddAutoWalker", "OddAutoWalker\OddAutoWalker.csproj", "{8DB8B104-5644-4664-B480-61ED35D9705B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8DB8B104-5644-4664-B480-61ED35D9705B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8DB8B104-5644-4664-B480-61ED35D9705B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8DB8B104-5644-4664-B480-61ED35D9705B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8DB8B104-5644-4664-B480-61ED35D9705B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9C1B9070-BB78-4687-BFA2-11AF85927F6A}
+	EndGlobalSection
+EndGlobal
