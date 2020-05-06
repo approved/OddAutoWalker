@@ -5,7 +5,7 @@ using System.Text;
 
 namespace OddAutoWalker
 {
-    public static class InputManager
+    public static class InputSimulator
     {
 
         [DllImport("user32.dll", SetLastError = true)]

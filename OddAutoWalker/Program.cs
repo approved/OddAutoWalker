@@ -21,9 +21,15 @@ namespace OddAutoWalker
         private static bool HasProcess = false;
         private static bool IsExiting = false;
         private static bool IsIntializingValues = false;
+        private static bool IsUpdatingAttackValues = false;
 
-        private static WebClient Client = new WebClient();
+        private static readonly WebClient Client = new WebClient();
+        private static readonly InputManager InputManager = new InputManager();
         private static Process LeagueProcess = null;
+
+        private static readonly Timer OrbWalkTimer = new Timer(100d/3d);
+
+        private static bool OrbWalkerTimerActive = false;
 
         private static string ActivePlayerName = string.Empty;
         private static string ChampionName = string.Empty;
@@ -35,11 +41,16 @@ namespace OddAutoWalker
         private static double ChampionAttackSpeedRatio = 0.625;
         private static double ChampionAttackDelayPercent = 0.3;
         private static double ChampionAttackDelayScaling = 1.0;
-        private static double WindupBuffer = 0.033;
+        private static double WindupBuffer = 1d / 30d;
+
+#if DEBUG
+        private static int TimerCallbackCounter = 0;
+#endif
 
         public static double GetSecondsPerAttack() => 1 / ClientAttackSpeed;
         public static long GetSecondsPerAttackAsLong() => (long)(GetSecondsPerAttack() * 1000);
         public static double GetWindupDuration() => (((GetSecondsPerAttack() * ChampionAttackDelayPercent) - ChampionAttackCastTime) * ChampionAttackDelayScaling) + ChampionAttackCastTime;
+        public static double GetBufferedWindupDuration() => (GetWindupDuration() * 1000) + (WindupBuffer * 1000);
         public static long GetWindupDurationAsLong() => (long)(GetWindupDuration() * 1000) + (long)(WindupBuffer * 1000);
 
         public static void Main(string[] args)
@@ -47,55 +58,116 @@ namespace OddAutoWalker
             ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
             Console.CursorVisible = false;
 
-            Timer orbWalkTimer = new Timer(33.33);
-            orbWalkTimer.Elapsed += AttackSpeedCacheTimer_Elapsed;
-            orbWalkTimer.Elapsed += OrbWalkTimer_Elapsed;
-            orbWalkTimer.Start();
+            InputManager.Initialize();
+            InputManager.OnKeyboardEvent += InputManager_OnKeyboardEvent;
+            InputManager.OnMouseEvent += InputManager_OnMouseEvent;
+
+            OrbWalkTimer.Elapsed += OrbWalkTimer_Elapsed;
+#if DEBUG
+            Timer callbackTimer = new Timer(16.66);
+            callbackTimer.Elapsed += Timer_CallbackLog;
+#endif
+
+            Timer attackSpeedCacheTimer = new Timer(33.33);
+            attackSpeedCacheTimer.Elapsed += AttackSpeedCacheTimer_Elapsed;
+
+            attackSpeedCacheTimer.Start();
 
             CheckLeagueProcess();
 
             Console.ReadLine();
         }
 
+#if DEBUG
+        private static void Timer_CallbackLog(object sender, ElapsedEventArgs e)
+        {
+            if (TimerCallbackCounter > 1 || TimerCallbackCounter < 0)
+            {
+                Console.Clear();
+                Console.WriteLine("Timer Error Detected");
+                throw new Exception("Timers must not run simultaneously");
+            }
+        }
+#endif
+
+        private static void InputManager_OnMouseEvent(VirtualKeyCode key, KeyState state, int x, int y)
+        {
+        }
+
         private static void InputManager_OnKeyboardEvent(VirtualKeyCode key, KeyState state)
         {
-            //TODO: Add keybind checks
+            if (key == VirtualKeyCode.C)
+            {
+                switch(state)
+                {
+                    case KeyState.Down when !OrbWalkerTimerActive:
+                        OrbWalkerTimerActive = true;
+                        OrbWalkTimer.Start();
+                        break;
+
+                    case KeyState.Up when OrbWalkerTimerActive:
+                        OrbWalkerTimerActive = false;
+                        OrbWalkTimer.Stop();
+                        break;
+                }
+            }
         }
 
         private static DateTime lastInputTime;
+        private static DateTime lastMoveTime;
         private static long lastWindupDuration = 0;
         private static long lastAttackDuration = 0;
         private static bool activatedChampionTargeting = false;
+
+        private static readonly Stopwatch owStopWatch = new Stopwatch();
+
         private static void OrbWalkTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
+#if DEBUG
+            owStopWatch.Start();
+            TimerCallbackCounter++;
+#endif
             if (!HasProcess || IsExiting || GetForegroundWindow() != LeagueProcess.MainWindowHandle)
             {
-                InputManager.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_X);
+#if DEBUG
+                TimerCallbackCounter--;
+#endif
+                if (activatedChampionTargeting)
+                {
+                    InputSimulator.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_X);
+                }
+
                 return;
             }
-            else if(!activatedChampionTargeting)
+            
+            if(!activatedChampionTargeting)
             {
                 activatedChampionTargeting = true;
-                InputManager.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_X);
+                InputSimulator.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_X);
             }
 
             double currentMillis = (e.SignalTime - lastInputTime).TotalMilliseconds;
-            if (currentMillis > GetWindupDurationAsLong())
-            { 
-                if (currentMillis > GetSecondsPerAttackAsLong())
+            if (currentMillis > lastWindupDuration)
+            {
+                if (currentMillis - (WindupBuffer * 1000) > lastAttackDuration)
                 {
-                    InputManager.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_A);
-                    InputManager.Mouse.MouseClick(InputManager.Mouse.Buttons.Left);
-                    InputManager.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_A);
                     lastInputTime = e.SignalTime;
-                    //lastWindupDuration = GetWindupDurationAsLong();
-                    //lastAttackDuration = GetSecondsPerAttackAsLong();
+                    lastWindupDuration = GetWindupDurationAsLong();
+                    lastAttackDuration = GetSecondsPerAttackAsLong();
+                    InputSimulator.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_A);
+                    InputSimulator.Mouse.MouseClick(InputSimulator.Mouse.Buttons.Left);
+                    InputSimulator.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_A);
                 }
-                else
+                else if ((e.SignalTime - lastMoveTime).TotalMilliseconds >= 100)
                 {
-                    InputManager.Mouse.MouseClick(InputManager.Mouse.Buttons.Right);
+                    lastMoveTime = e.SignalTime;
+                    InputSimulator.Mouse.MouseClick(InputSimulator.Mouse.Buttons.Right);
                 }
             }
+#if DEBUG
+            TimerCallbackCounter--;
+            owStopWatch.Reset();
+#endif
         }
 
         private static void CheckLeagueProcess()
@@ -124,10 +196,22 @@ namespace OddAutoWalker
 
         private static void AttackSpeedCacheTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (HasProcess && !IsExiting && !IsIntializingValues)
+            if (HasProcess && !IsExiting && !IsIntializingValues && !IsUpdatingAttackValues)
             {
-                JToken activePlayerToken = JToken.Parse(Client.DownloadString(ActivePlayerEndpoint));
-                ActivePlayerName = activePlayerToken["summonerName"].ToString();
+                IsUpdatingAttackValues = true;
+
+                JToken activePlayerToken = null;
+                try
+                {
+                    activePlayerToken = JToken.Parse(Client.DownloadString(ActivePlayerEndpoint));
+                }
+                catch
+                {
+                    IsUpdatingAttackValues = false;
+                    return;
+                }
+
+                ActivePlayerName = activePlayerToken?["summonerName"].ToString();
 
                 if (string.IsNullOrEmpty(ChampionName))
                 {
@@ -139,47 +223,53 @@ namespace OddAutoWalker
                         {
                             ChampionName = token["championName"].ToString();
                             string[] rawNameArray = token["rawChampionName"].ToString().Split('_', StringSplitOptions.RemoveEmptyEntries);
-                            RawChampionName = rawNameArray[rawNameArray.Length - 1];
+                            RawChampionName = rawNameArray[^1];
                         }
                     }
 
-                    try
+                    if(!GetChampionBaseValues(RawChampionName))
                     {
-                        GetChampionBaseValues(RawChampionName);
-                    }
-                    catch(Exception ex)
-                    {
-                        Console.WriteLine($"{ex.Message} {ex.StackTrace}");
+                        IsIntializingValues = false;
+                        IsUpdatingAttackValues = false;
+                        return;
                     }
 #if DEBUG
                     Console.Title = $"({ActivePlayerName}) {ChampionName}";
                     Console.SetCursorPosition(0, 0);
-                    Console.WriteLine($"Attack Speed Ratio: {ChampionAttackSpeedRatio}");
-                    Console.WriteLine($"Windup Percent: {ChampionAttackDelayPercent}");
+                    Console.WriteLine($"{owStopWatch.ElapsedMilliseconds}\n" +
+                        $"Attack Speed Ratio: {ChampionAttackSpeedRatio}\n" +
+                        $"Windup Percent: {ChampionAttackDelayPercent}\n" +
+                        $"Current AS: {ClientAttackSpeed:#.######}\n+" +
+                        $"Seconds Per Attack: {GetSecondsPerAttack():#.######}\n" +
+                        $"Windup Duration: {GetWindupDuration():#.######}s + {WindupBuffer}s delay\n" +
+                        $"Attack Down Time: {(GetSecondsPerAttack() - GetWindupDuration()):#.######}s");
 #endif
                     IsIntializingValues = false;
                 }
                 
                 ClientAttackSpeed = activePlayerToken["championStats"]["attackSpeed"].Value<double>();
-#if DEBUG
-                Console.SetCursorPosition(0, 2);
-                Console.WriteLine($"Current AS: {ClientAttackSpeed.ToString().Substring(0, 8)}");
-                Console.WriteLine($"Seconds Per Attack: {GetSecondsPerAttack().ToString().Substring(0, 8)}");
-                Console.WriteLine($"Windup Duration: {GetWindupDuration().ToString().Substring(0, 8)}s + {WindupBuffer}s delay");
-                Console.WriteLine($"Attack Down Time: {(GetSecondsPerAttack() - GetWindupDuration()).ToString().Substring(0, 8)}s");
-#endif
+                IsUpdatingAttackValues = false;
             }
         }
 
-        private static void GetChampionBaseValues(string championName)
+        private static bool GetChampionBaseValues(string championName)
         {
             string lowerChampionName = championName.ToLower();
-            JToken championBinToken = JToken.Parse(Client.DownloadString($"{ChampionStatsEndpoint}{lowerChampionName}/{lowerChampionName}.bin.json"));
+            JToken championBinToken = null;
+            try
+            {
+                championBinToken = JToken.Parse(Client.DownloadString($"{ChampionStatsEndpoint}{lowerChampionName}/{lowerChampionName}.bin.json"));
+            }
+            catch
+            {
+                return false;
+            }
             JToken championRootStats = championBinToken[$"Characters/{championName}/CharacterRecords/Root"];
             ChampionAttackSpeedRatio = championRootStats["attackSpeedRatio"].Value<double>(); ;
 
-            JToken championAttackDelayOffsetToken = championRootStats["basicAttack"]["mAttackDelayCastOffsetPercent"];
-            JToken championAttackDelayOffsetSpeedRatioToken = championRootStats["basicAttack"]["mAttackDelayCastOffsetPercentAttackSpeedRatio"];
+            JToken championBasicAttackInfoToken = championRootStats["basicAttack"];
+            JToken championAttackDelayOffsetToken = championBasicAttackInfoToken["mAttackDelayCastOffsetPercent"];
+            JToken championAttackDelayOffsetSpeedRatioToken = championBasicAttackInfoToken["mAttackDelayCastOffsetPercentAttackSpeedRatio"];
 
             if(championAttackDelayOffsetSpeedRatioToken?.Value<double?>() != null)
             {
@@ -188,15 +278,14 @@ namespace OddAutoWalker
 
             if (championAttackDelayOffsetToken?.Value<double?>() == null)
             {
-                JToken attackTotalTimeToken = championRootStats["basicAttack"]["mAttackTotalTime"];
-                JToken attackCastTimeToken = championRootStats["basicAttack"]["mAttackCastTime"];
+                JToken attackTotalTimeToken = championBasicAttackInfoToken["mAttackTotalTime"];
+                JToken attackCastTimeToken = championBasicAttackInfoToken["mAttackCastTime"];
 
                 if (attackTotalTimeToken?.Value<double?>() == null && attackCastTimeToken?.Value<double?>() == null)
                 {
-                    string attackName = championRootStats["basicAttack"]["mAttackName"].ToString();
+                    string attackName = championBasicAttackInfoToken["mAttackName"].ToString();
                     string attackSpell = $"Characters/{attackName.Split(new[] { "BasicAttack" }, StringSplitOptions.RemoveEmptyEntries)[0]}/Spells/{attackName}";
-                    JToken attackSpellToken = championBinToken[attackSpell];
-                    ChampionAttackDelayPercent += attackSpellToken["mSpell"]["delayCastOffsetPercent"].Value<double>();
+                    ChampionAttackDelayPercent += championBinToken[attackSpell]["mSpell"]["delayCastOffsetPercent"].Value<double>();
                 }
                 else
                 {
@@ -210,13 +299,8 @@ namespace OddAutoWalker
             {
                 ChampionAttackDelayPercent += championAttackDelayOffsetToken.Value<double>(); ;
             }
-        }
-    }
 
-    public enum AttackCommand
-    {
-        AttackMove,
-        AttackChampOnlyMove,
-        Move
+            return true;
+        }
     }
 }
