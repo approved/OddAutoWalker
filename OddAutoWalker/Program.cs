@@ -44,7 +44,7 @@ namespace OddAutoWalker
 
         // This is added to windup time to avoid moving too early
         // Think of it as AA-cancel insurance, where the cost is potential DPS
-        private static readonly double WindupBuffer = 1d / 30d;
+        private static readonly double WindupBuffer = 1d / 15d;
         // If we're trying to input faster than this, don't
         private static readonly double MinInputDelay = 1d / 30d;
         // This is honestly just semi-random because we need an interval to run the timer at
@@ -62,6 +62,7 @@ namespace OddAutoWalker
         public static void Main(string[] args)
         {
             ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
+            Client.Proxy = null;
 
             Console.Clear();
             Console.CursorVisible = false;
@@ -278,7 +279,7 @@ namespace OddAutoWalker
                 Console.WriteLine($"{owStopWatch.ElapsedMilliseconds}\n" +
                     $"Attack Speed Ratio: {ChampionAttackSpeedRatio}\n" +
                     $"Windup Percent: {ChampionAttackDelayPercent}\n" +
-                    $"Current AS: {ClientAttackSpeed:0.00####}\n+" +
+                    $"Current AS: {ClientAttackSpeed:0.00####}\n" +
                     $"Seconds Per Attack: {GetSecondsPerAttack():0.00####}\n" +
                     $"Windup Duration: {GetWindupDuration():0.00####}s + {WindupBuffer}s delay\n" +
                     $"Attack Down Time: {(GetSecondsPerAttack() - GetWindupDuration()):0.00####}s");
