@@ -27,7 +27,7 @@ namespace OddAutoWalker
         private static readonly InputManager InputManager = new InputManager();
         private static Process LeagueProcess = null;
 
-        private static readonly Timer OrbWalkTimer = new Timer(100d/3d);
+        private static readonly Timer OrbWalkTimer = new Timer(100d / 3d);
 
         private static bool OrbWalkerTimerActive = false;
 
@@ -41,21 +41,30 @@ namespace OddAutoWalker
         private static double ChampionAttackSpeedRatio = 0.625;
         private static double ChampionAttackDelayPercent = 0.3;
         private static double ChampionAttackDelayScaling = 1.0;
-        private static double WindupBuffer = 1d / 30d;
+
+        // This is added to windup time to avoid moving too early
+        // Think of it as AA-cancel insurance, where the cost is potential DPS
+        private static readonly double WindupBuffer = 1d / 15d;
+        // If we're trying to input faster than this, don't
+        private static readonly double MinInputDelay = 1d / 30d;
+        // This is honestly just semi-random because we need an interval to run the timer at
+        private static readonly double OrderTickRate = 1d / 30d;
 
 #if DEBUG
         private static int TimerCallbackCounter = 0;
 #endif
 
+        // These are all in seconds
         public static double GetSecondsPerAttack() => 1 / ClientAttackSpeed;
-        public static long GetSecondsPerAttackAsLong() => (long)(GetSecondsPerAttack() * 1000);
         public static double GetWindupDuration() => (((GetSecondsPerAttack() * ChampionAttackDelayPercent) - ChampionAttackCastTime) * ChampionAttackDelayScaling) + ChampionAttackCastTime;
-        public static double GetBufferedWindupDuration() => (GetWindupDuration() * 1000) + (WindupBuffer * 1000);
-        public static long GetWindupDurationAsLong() => (long)(GetWindupDuration() * 1000) + (long)(WindupBuffer * 1000);
+        public static double GetBufferedWindupDuration() => GetWindupDuration() + WindupBuffer;
 
         public static void Main(string[] args)
         {
             ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
+            Client.Proxy = null;
+
+            Console.Clear();
             Console.CursorVisible = false;
 
             InputManager.Initialize();
@@ -68,7 +77,7 @@ namespace OddAutoWalker
             callbackTimer.Elapsed += Timer_CallbackLog;
 #endif
 
-            Timer attackSpeedCacheTimer = new Timer(33.33);
+            Timer attackSpeedCacheTimer = new Timer(OrderTickRate);
             attackSpeedCacheTimer.Elapsed += AttackSpeedCacheTimer_Elapsed;
 
             attackSpeedCacheTimer.Start();
@@ -98,7 +107,7 @@ namespace OddAutoWalker
         {
             if (key == VirtualKeyCode.C)
             {
-                switch(state)
+                switch (state)
                 {
                     case KeyState.Down when !OrbWalkerTimerActive:
                         OrbWalkerTimerActive = true;
@@ -113,10 +122,11 @@ namespace OddAutoWalker
             }
         }
 
-        private static DateTime lastInputTime;
-        private static DateTime lastMoveTime;
-        private static long lastWindupDuration = 0;
-        private static long lastAttackDuration = 0;
+        // When these DateTime instances are in the past, the action they gate can be taken
+        private static DateTime nextInput = default;
+        private static DateTime nextMove = default;
+        private static DateTime nextAttack = default;
+
         private static bool activatedChampionTargeting = false;
 
         private static readonly Stopwatch owStopWatch = new Stopwatch();
@@ -139,28 +149,51 @@ namespace OddAutoWalker
 
                 return;
             }
-            
-            if(!activatedChampionTargeting)
+
+            if (!activatedChampionTargeting)
             {
                 activatedChampionTargeting = true;
                 InputSimulator.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_X);
             }
 
-            double currentMillis = (e.SignalTime - lastInputTime).TotalMilliseconds;
-            if (currentMillis > lastWindupDuration)
+            // Store time at timer tick start into a variable for readability
+            var time = e.SignalTime;
+
+            // Make sure we can send input without being dropped
+            // This is used for gating movement orders when waiting for an attack to be prepared
+            // This is not needed if this function is not ran frequently enough for it to matter
+            // If it isn't, you might end up with this timer and this function's timer being out of sync
+            //   resulting in a (worst-case) OrderTickRate + MinInputDelay delay
+            // It is currently disabled due to this, enable it if you want/need to
+            if (true || nextInput < time)
             {
-                if (currentMillis - (WindupBuffer * 1000) > lastAttackDuration)
+                // If we can attack, do so
+                if (nextAttack < time)
                 {
-                    lastInputTime = e.SignalTime;
-                    lastWindupDuration = GetWindupDurationAsLong();
-                    lastAttackDuration = GetSecondsPerAttackAsLong();
+                    // Store current time + input delay so we're aware when we can move next
+                    nextInput = time.AddSeconds(MinInputDelay);
+
+                    // Send attack input
                     InputSimulator.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_A);
                     InputSimulator.Mouse.MouseClick(InputSimulator.Mouse.Buttons.Left);
                     InputSimulator.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_A);
+
+                    // We've sent input now, so we're re-fetching time as I have no idea how long input takes
+                    // I'm assuming it's negligable, but why not
+                    // Please check what the actual difference is if you consider keeping this lol
+                    var attackTime = DateTime.Now;
+
+                    // Store timings for when to next attack / move
+                    nextMove = attackTime.AddSeconds(GetBufferedWindupDuration());
+                    nextAttack = attackTime.AddSeconds(GetSecondsPerAttack());
                 }
-                else if ((e.SignalTime - lastMoveTime).TotalMilliseconds >= 100)
+                // If we can't attack but we can move, do so
+                else if (nextMove < time)
                 {
-                    lastMoveTime = e.SignalTime;
+                    // Store current time + input delay so we're aware when we can attack / move next
+                    nextInput = time.AddSeconds(MinInputDelay);
+
+                    // Send move input
                     InputSimulator.Mouse.MouseClick(InputSimulator.Mouse.Buttons.Right);
                 }
             }
@@ -217,9 +250,9 @@ namespace OddAutoWalker
                 {
                     IsIntializingValues = true;
                     JToken playerListToken = JToken.Parse(Client.DownloadString(PlayerListEndpoint));
-                    foreach(JToken token in playerListToken)
+                    foreach (JToken token in playerListToken)
                     {
-                        if(token["summonerName"].ToString().Equals(ActivePlayerName))
+                        if (token["summonerName"].ToString().Equals(ActivePlayerName))
                         {
                             ChampionName = token["championName"].ToString();
                             string[] rawNameArray = token["rawChampionName"].ToString().Split('_', StringSplitOptions.RemoveEmptyEntries);
@@ -227,26 +260,31 @@ namespace OddAutoWalker
                         }
                     }
 
-                    if(!GetChampionBaseValues(RawChampionName))
+                    if (!GetChampionBaseValues(RawChampionName))
                     {
                         IsIntializingValues = false;
                         IsUpdatingAttackValues = false;
                         return;
                     }
+
 #if DEBUG
                     Console.Title = $"({ActivePlayerName}) {ChampionName}";
-                    Console.SetCursorPosition(0, 0);
-                    Console.WriteLine($"{owStopWatch.ElapsedMilliseconds}\n" +
-                        $"Attack Speed Ratio: {ChampionAttackSpeedRatio}\n" +
-                        $"Windup Percent: {ChampionAttackDelayPercent}\n" +
-                        $"Current AS: {ClientAttackSpeed:#.######}\n+" +
-                        $"Seconds Per Attack: {GetSecondsPerAttack():#.######}\n" +
-                        $"Windup Duration: {GetWindupDuration():#.######}s + {WindupBuffer}s delay\n" +
-                        $"Attack Down Time: {(GetSecondsPerAttack() - GetWindupDuration()):#.######}s");
 #endif
+
                     IsIntializingValues = false;
                 }
-                
+
+#if DEBUG
+                Console.SetCursorPosition(0, 0);
+                Console.WriteLine($"{owStopWatch.ElapsedMilliseconds}\n" +
+                    $"Attack Speed Ratio: {ChampionAttackSpeedRatio}\n" +
+                    $"Windup Percent: {ChampionAttackDelayPercent}\n" +
+                    $"Current AS: {ClientAttackSpeed:0.00####}\n" +
+                    $"Seconds Per Attack: {GetSecondsPerAttack():0.00####}\n" +
+                    $"Windup Duration: {GetWindupDuration():0.00####}s + {WindupBuffer}s delay\n" +
+                    $"Attack Down Time: {(GetSecondsPerAttack() - GetWindupDuration()):0.00####}s");
+#endif
+
                 ClientAttackSpeed = activePlayerToken["championStats"]["attackSpeed"].Value<double>();
                 IsUpdatingAttackValues = false;
             }
@@ -271,7 +309,7 @@ namespace OddAutoWalker
             JToken championAttackDelayOffsetToken = championBasicAttackInfoToken["mAttackDelayCastOffsetPercent"];
             JToken championAttackDelayOffsetSpeedRatioToken = championBasicAttackInfoToken["mAttackDelayCastOffsetPercentAttackSpeedRatio"];
 
-            if(championAttackDelayOffsetSpeedRatioToken?.Value<double?>() != null)
+            if (championAttackDelayOffsetSpeedRatioToken?.Value<double?>() != null)
             {
                 ChampionAttackDelayScaling = championAttackDelayOffsetSpeedRatioToken.Value<double>();
             }
