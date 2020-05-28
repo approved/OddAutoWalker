@@ -42,11 +42,14 @@ namespace OddAutoWalker
         private static double ChampionAttackDelayPercent = 0.3;
         private static double ChampionAttackDelayScaling = 1.0;
 
-        // This is added to windup time to avoid moving too early
-        // Think of it as AA-cancel insurance, where the cost is potential DPS
+        /// <summary>
+        /// This is a buffer to prevent you from accidentally canceling your auto-attack too soon, as a result of fps, ping, or otherwise.
+        /// </summary>
         private static readonly double WindupBuffer = 1d / 15d;
+
         // If we're trying to input faster than this, don't
         private static readonly double MinInputDelay = 1d / 30d;
+
         // This is honestly just semi-random because we need an interval to run the timer at
         private static readonly double OrderTickRate = 1d / 30d;
 
