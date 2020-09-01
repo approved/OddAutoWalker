@@ -9,7 +9,7 @@ namespace OddAutoWalker
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint nInputs, Input[] pInputs, int cbSize);
 
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr GetMessageExtraInfo();
 
         [Flags]

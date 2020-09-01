@@ -247,10 +247,9 @@ namespace OddAutoWalker
                     return;
                 }
 
-                ActivePlayerName = activePlayerToken?["summonerName"].ToString();
-
                 if (string.IsNullOrEmpty(ChampionName))
                 {
+                    ActivePlayerName = activePlayerToken?["summonerName"].ToString();
                     IsIntializingValues = true;
                     JToken playerListToken = JToken.Parse(Client.DownloadString(PlayerListEndpoint));
                     foreach (JToken token in playerListToken)
