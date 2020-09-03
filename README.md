@@ -43,7 +43,6 @@ To Compile Yourself:
 ---
 
 ## Using This Program
-<br>
 <details>
     <summary>Important Note</summary>
     <p>
