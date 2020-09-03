@@ -26,12 +26,8 @@ jobs:
     - name: Publish
       if: success()
       run: dotnet publish --no-build -c Release -o release
-    - name: Create Artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: OddAutoWalker-release
-        path: ./release
-      
+    - name: Create Release Zip 
+      run : zip -r OddAutoWalker-release.zip ./release
     - name: Release via Automatic Release
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
