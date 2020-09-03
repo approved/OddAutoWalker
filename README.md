@@ -38,29 +38,32 @@ To Compile Yourself:
 * Download the latest version of [Visual Studio](https://visualstudio.microsoft.com/downloads/) (VS)
 * Make sure the .netcore 3.1 SDK is installed if it was not installed with VS
 * Clone or Downlaod the Source
-* Open [OddAutoWalker.sln](OddAutoWalker.sln) with VS to build and run the project
+* Open `OddAutoWalker.sln` with VS to build and run the project
 
 ---
 
 ## Using This Program
-
-<p>
-    <sub>
-    <b>
-    While this program is usable, it is intended to be used as reference for both a better implementation and your own project.
-    <br>
-    <br>
-    If you don't want to mess with the program yourself, you must have your "Player Attack Move" bound to 'A'. <br>
-    This setting can be found in the in-game settings at Settings->Hotkeys->Player Movement.
-    </b>
-    </sub>
-</p>
+<br>
+<details>
+    <summary>Important Note</summary>
+    <p>
+        <i>
+            <b>
+                While this program is usable, it is intended to be used as reference for both a better implementation and your own project.
+                <br>
+                <br>
+                If you don't want to mess with the program yourself, you must have your "Player Attack Move" bound to 'A'. <br>
+                This setting can be found in the in-game settings at Settings->Hotkeys->Player Movement.
+            </b>
+        </i>
+    </p>
+</details>
 
 ---
 
 Steps:
 
 1. Launch OddAutoWalker.exe and League of Legends
-2. Queue up in any normal mode (non-[TFT](# "Team Fight Tactics")) and wait until you're in game
+2. Queue up in any mode, excluding Team Fight Tactics, and wait until you're in game
 3. Press and hold 'C' to activate the auto walker
 4. Deactivate by releasing 'C'
