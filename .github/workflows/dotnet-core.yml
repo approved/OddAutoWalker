@@ -23,3 +23,18 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+    - name: Publish
+      if: success()
+      run: dotnet publish --no-build -c Release -o release
+    - name: Release
+      uses: actions/create-release@v1
+      id: create_release
+      if: success()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          package: ./release
+          draft: false
+          prerelease: false
