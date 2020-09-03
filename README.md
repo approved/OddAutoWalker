@@ -37,7 +37,7 @@ To Compile Yourself:
 * Your computer must be running Windows 10 version 1703 or higher
 * Download the latest version of [Visual Studio](https://visualstudio.microsoft.com/downloads/) (VS)
 * Make sure the .netcore 3.1 SDK is installed if it was not installed with VS
-* Clone or Downlaod the Source
+* Clone or Download the Source
 * Open `OddAutoWalker.sln` with VS to build and run the project
 
 ---
