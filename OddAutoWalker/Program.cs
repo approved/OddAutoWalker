@@ -130,8 +130,6 @@ namespace OddAutoWalker
         private static DateTime nextMove = default;
         private static DateTime nextAttack = default;
 
-        private static bool activatedChampionTargeting = false;
-
         private static readonly Stopwatch owStopWatch = new Stopwatch();
 
         private static void OrbWalkTimer_Elapsed(object sender, ElapsedEventArgs e)
@@ -145,18 +143,8 @@ namespace OddAutoWalker
 #if DEBUG
                 TimerCallbackCounter--;
 #endif
-                if (activatedChampionTargeting)
-                {
-                    InputSimulator.Keyboard.KeyUp((ushort)DirectInputKeys.DIK_X);
-                }
 
                 return;
-            }
-
-            if (!activatedChampionTargeting)
-            {
-                activatedChampionTargeting = true;
-                InputSimulator.Keyboard.KeyDown((ushort)DirectInputKeys.DIK_X);
             }
 
             // Store time at timer tick start into a variable for readability
