@@ -25,7 +25,7 @@ jobs:
       run: dotnet test -c Release --no-restore --verbosity normal
     - name: Publish
       if: success()
-      run: dotnet publish --no-build -c Release -o release
+      run: dotnet publish --no-build -c Release -o release -r win10-x64 -p:PublishSingleFile=true --self-contained true
     - name: Create Release Zip 
       run : zip -r OddAutoWalker-release.zip ./release
     - name: Release via Automatic Release
