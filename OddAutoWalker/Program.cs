@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -17,12 +18,14 @@ namespace OddAutoWalker
         private const string ActivePlayerEndpoint = @"https://127.0.0.1:2999/liveclientdata/activeplayer";
         private const string PlayerListEndpoint = @"https://127.0.0.1:2999/liveclientdata/playerlist";
         private const string ChampionStatsEndpoint = @"https://raw.communitydragon.org/latest/game/data/characters/";
+        private const string SettingsFile = @"settings\settings.json";
 
         private static bool HasProcess = false;
         private static bool IsExiting = false;
         private static bool IsIntializingValues = false;
         private static bool IsUpdatingAttackValues = false;
 
+        private static readonly Settings CurrentSettings = new Settings();
         private static readonly WebClient Client = new WebClient();
         private static readonly InputManager InputManager = new InputManager();
         private static Process LeagueProcess = null;
@@ -64,6 +67,16 @@ namespace OddAutoWalker
 
         public static void Main(string[] args)
         {
+            if (!File.Exists(SettingsFile))
+            {
+                Directory.CreateDirectory("settings");
+                CurrentSettings.CreateNew(SettingsFile);
+            }
+            else
+            {
+                CurrentSettings.Load(SettingsFile);
+            }
+
             ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
             Client.Proxy = null;
 
@@ -84,6 +97,7 @@ namespace OddAutoWalker
             attackSpeedCacheTimer.Elapsed += AttackSpeedCacheTimer_Elapsed;
 
             attackSpeedCacheTimer.Start();
+            Console.WriteLine($"Press and hold '{(VirtualKeyCode)CurrentSettings.ActivationKey}' to activate the Orb Walker");
 
             CheckLeagueProcess();
 
@@ -108,7 +122,7 @@ namespace OddAutoWalker
 
         private static void InputManager_OnKeyboardEvent(VirtualKeyCode key, KeyState state)
         {
-            if (key == VirtualKeyCode.C)
+            if (key == (VirtualKeyCode)CurrentSettings.ActivationKey)
             {
                 switch (state)
                 {
